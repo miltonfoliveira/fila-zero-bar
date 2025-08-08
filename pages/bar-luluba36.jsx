@@ -11,21 +11,18 @@ export default function BaristaPanel() {
   const audio = typeof window !== 'undefined' ? new Audio('/alert.mp3') : null
 
   useEffect(() => {
-    fetchOrders()
-    const subscription = supabase
-      .channel('orders-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, payload => {
-        setOrders(prev => [...prev, payload.new])
-        audio?.play()
-      })
-      .subscribe()
-    return () => {
-      subscription.unsubscribe()
+    let active = true
+    const tick = async () => {
+      const { data } = await supabase.from('orders').select('*').eq('status','new').order('created_at')
+      if (active) setOrders(data || [])
     }
+    tick()
+    const id = setInterval(tick, 3000)
+    return () => { active = false; clearInterval(id) }
   }, [])
 
   async function fetchOrders() {
-    const { data } = await supabase.from('orders').select('*').eq('status', 'pending').order('created_at')
+    const { data } = await supabase.from('orders').select('*').eq('status', 'new').order('created_at')
     setOrders(data || [])
   }
 
