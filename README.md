@@ -1,12 +1,11 @@
+
 # Fila Zero Bar
 
-Sistema para pedidos de drinks via QR code com painel de bar e notificação por WhatsApp (ou SMS fallback).
+Sistema web para pedidos de drinks via QR code + painel do bar com alerta por som e WhatsApp.
+
+Este repositório está pronto para deploy via Vercel.
 
 Inclui:
-- Página de pedidos com QR Code
-- Painel do bar com PIN
-- Integração com Supabase
-- Estilo otimizado para tablets
-- Alerta sonoro ao chegar novo pedido
-
-Substitua o `notification.mp3` por um som real.
+- `package.json` com dependências Next.js
+- `pages/`, `public/`, `lib/`, `styles/`
+- Placeholder de som (`public/notification.mp3`)
