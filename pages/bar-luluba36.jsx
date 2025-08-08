@@ -62,9 +62,21 @@ export default function BaristaPanel() {
   }, [])
 
   async function markReady(id) {
-    const { error } = await supabase.from('orders').update({ status: 'ready' }).eq('id', id)
-    if (error) { setErrorMsg(error.message); return }
-    setOrders(prev => prev.filter(o => o.id !== id))
+    try {
+      const r = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      })
+      const d = await r.json()
+      if (!d.ok) {
+        setErrorMsg(d.error || 'Falha ao notificar por SMS')
+        // Mesmo se SMS falhar, já removemos da fila porque status virou 'ready'
+      }
+      setOrders(prev => prev.filter(o => o.id !== id))
+    } catch (e) {
+      setErrorMsg(String(e))
+    }
   }
 
   return (
