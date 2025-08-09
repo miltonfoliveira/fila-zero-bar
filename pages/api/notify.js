@@ -56,6 +56,15 @@ export default async function handler(req, res) {
       }
     }
 
+    // --- Gate para desativar SMS em desenvolvimento/teste ---
+    if (process.env.ENABLE_SMS !== 'true') {
+      return res.status(200).json({
+        ok: true,
+        channel: 'sms_disabled',
+        reason: 'SMS desativado por configuração'
+      });
+    }
+
     // --- Twilio SMS (sempre com From número) ---
     const sid   = process.env.TWILIO_ACCOUNT_SID;
     const token = process.env.TWILIO_AUTH_TOKEN;
