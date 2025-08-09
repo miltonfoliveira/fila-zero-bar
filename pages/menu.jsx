@@ -107,7 +107,8 @@ export default function Menu() {
             <div style={{ fontWeight:700 }}>Olá, {profile.name}</div>
             <div style={{ opacity:.7, fontSize:12 }}>{profile.phone}</div>
           </div>
-          <div style={{ marginLeft:'auto' }}>
+          <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
+            <button onClick={() => router.push('/ranking')} style={{ padding:'8px 10px' }}>🏆 Ranking</button>
             <button onClick={logout} style={{ padding:'8px 10px' }}>Sair</button>
           </div>
         </header>
@@ -139,6 +140,9 @@ export default function Menu() {
           <div style={{ opacity:.7, fontSize:12 }}>{profile.phone}</div>
         </div>
         <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
+          <button onClick={() => router.push('/ranking')} style={{ padding:'8px 10px' }}>
+            🏆 Ranking
+          </button>
           <button onClick={() => router.push(`/me?phone=${encodeURIComponent(normalizeBR(profile.phone))}`)} style={{ padding:'8px 10px' }}>
             👀 Acompanhar status
           </button>
@@ -167,12 +171,11 @@ export default function Menu() {
                 <div style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>
                   {drink.name}
                 </div>
-                {drink.description && (
+                {drink.description ? (
                   <div style={{ fontSize:14, opacity:.8, lineHeight:1.4 }}>
                     {drink.description}
                   </div>
-                )}
-                {!drink.description && (
+                ) : (
                   <div style={{ fontSize:12, opacity:.6 }}>Sem descrição</div>
                 )}
               </div>
