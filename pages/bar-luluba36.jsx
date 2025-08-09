@@ -28,9 +28,9 @@ export default function BaristaPanel() {
   const audioRef = useRef(null)
   const soundEnabledRef = useRef(false)
   const prevPendingCountRef = useRef(0)
-  const [remindingIds, setRemindingIds] = useState({}) // { [id]: true } para desabilitar botão após clique
+  const [remindingIds, setRemindingIds] = useState({}) // { [id]: true } após clique
 
-  // Atualiza relógio
+  // Atualiza relógio + rerender
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000)
     return () => clearInterval(t)
@@ -61,18 +61,19 @@ export default function BaristaPanel() {
   const fetchQueues = async () => {
     const cutoffISO = new Date(Date.now() - FIFTEEN_MIN).toISOString()
 
-    // Pendentes
+    // Pendentes (new)
     const p = await supabase
       .from('orders')
       .select('id,name,drink_name,status,created_at')
       .eq('status', 'new')
       .order('created_at', { ascending: true })
 
-    // Prontos últimos 15 min por ready_at
+    // Prontos (ready) nos últimos 15 min via ready_at (ignora nulos)
     const r = await supabase
       .from('orders')
       .select('id,name,drink_name,status,created_at,ready_at')
       .eq('status', 'ready')
+      .not('ready_at', 'is', null)
       .gte('ready_at', cutoffISO)
       .order('ready_at', { ascending: false })
 
@@ -118,7 +119,9 @@ export default function BaristaPanel() {
           setPending(prev => prev.filter(o => o.id !== row.id))
           setReady(prev => {
             const next = pruneReady([row, ...prev])
-            return next.sort((a,b) => new Date(b.ready_at || b.created_at) - new Date(a.ready_at || a.created_at))
+            return next.sort(
+              (a,b) => new Date(b.ready_at || b.created_at) - new Date(a.ready_at || a.created_at)
+            )
           })
         }
       })
@@ -136,6 +139,7 @@ export default function BaristaPanel() {
       })
       const d = await r.json()
       if (!d.ok) setErrorMsg(d.error || 'Falha ao notificar por SMS')
+      // realtime cuidará de mover para prontos
     } catch (e) {
       setErrorMsg(String(e))
     }
@@ -151,7 +155,7 @@ export default function BaristaPanel() {
       })
       const d = await r.json()
       if (!d.ok) setErrorMsg(d.error || 'Falha ao reenviar SMS')
-      // Não mexe no estado; botão fica desabilitado para este item
+      // botão desabilita para este item durante a sessão
     } catch (e) {
       setErrorMsg(String(e))
     }
@@ -166,7 +170,9 @@ export default function BaristaPanel() {
       }}>
         <div>
           <div style={{ fontSize:26, fontWeight:700 }}>Painel do Bar</div>
-          <div style={{ fontSize:12, opacity:.7 }}>Atualizado: {new Date(now).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+          <div style={{ fontSize:12, opacity:.7 }}>
+            Atualizado: {new Date(now).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+          </div>
         </div>
         <button
           onClick={() => { soundEnabledRef.current = true; localStorage.setItem('fzb_sound','on'); playSound() }}

@@ -14,10 +14,10 @@ export default async function handler(req, res) {
       { auth: { persistSession: false } }
     );
 
-    // Carrega pedido
+    // Carrega pedido atual
     const { data: order, error: loadErr } = await supabase
       .from('orders')
-      .select('id,name,phone,drink_name,status')
+      .select('id,name,phone,drink_name,status,ready_at')
       .eq('id', id)
       .single();
 
@@ -25,25 +25,38 @@ export default async function handler(req, res) {
       return res.status(404).json({ ok: false, error: 'Pedido não encontrado' });
     }
 
-    // Atualiza de 'new' -> 'ready' (idempotente)
-    const { data: updData, error: updErr } = await supabase
+    // 1) Tenta 'new' -> 'ready' + ready_at agora
+    let { data: updData, error: updErr } = await supabase
       .from('orders')
-      .update({ status: 'ready' })
+      .update({ status: 'ready', ready_at: new Date().toISOString() })
       .eq('id', id)
       .eq('status', 'new')
-      .select('id');
+      .select('id, status, ready_at');
 
     if (updErr) {
       return res.status(500).json({ ok: false, error: updErr.message });
     }
 
-    const justBecameReady = Array.isArray(updData) && updData.length > 0;
-    if (!justBecameReady && order.status === 'ready') {
-      // Já estava pronto; não reenvia SMS
-      return res.status(200).json({ ok: true, channel: 'none', already: true });
+    let justBecameReady = Array.isArray(updData) && updData.length > 0;
+
+    // 2) Já estava ready, mas sem ready_at -> preenche agora (idempotente)
+    if (!justBecameReady && order.status === 'ready' && !order.ready_at) {
+      const { data: fixData, error: fixErr } = await supabase
+        .from('orders')
+        .update({ ready_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'ready')
+        .is('ready_at', null)
+        .select('id, status, ready_at');
+      if (fixErr) {
+        return res.status(500).json({ ok: false, error: fixErr.message });
+      }
+      if (Array.isArray(fixData) && fixData.length > 0) {
+        justBecameReady = true;
+      }
     }
 
-    // --- Twilio SMS (usar sempre From número) ---
+    // --- Twilio SMS (sempre com From número) ---
     const sid   = process.env.TWILIO_ACCOUNT_SID;
     const token = process.env.TWILIO_AUTH_TOKEN;
     const from  = process.env.TWILIO_PHONE_NUMBER;
