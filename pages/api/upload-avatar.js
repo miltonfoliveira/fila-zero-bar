@@ -1,0 +1,32 @@
+// pages/api/upload-avatar.js
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  try {
+    const { fileBase64, contentType, filename, profileId } = req.body || {};
+    if (!fileBase64 || !contentType || !filename || !profileId) {
+      return res.status(400).json({ ok: false, error: 'Parâmetros inválidos' });
+    }
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE, // server key
+      { auth: { persistSession: false } }
+    );
+
+    const buffer = Buffer.from(fileBase64, 'base64');
+    const path = `profiles/${profileId}/${Date.now()}-${filename}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('avatars')
+      .upload(path, buffer, { contentType, upsert: true });
+
+    if (upErr) return res.status(500).json({ ok: false, error: upErr.message });
+
+    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+    return res.status(200).json({ ok: true, url: pub.publicUrl });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e) });
+  }
+}
