@@ -30,13 +30,13 @@ export default function BaristaPanel() {
   const [remindingIds, setRemindingIds] = useState({}) // { [id]: true }
   const audioRef = useRef(null)
 
-  // Relógio p/ “tempo na fila” e re-render
+  // relógio para “tempo na fila” e re-render
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 15000)
     return () => clearInterval(t)
   }, [])
 
-  // Áudio + preferência
+  // áudio + preferência
   useEffect(() => {
     audioRef.current = new Audio('/alert.mp3')
     try {
@@ -89,7 +89,7 @@ export default function BaristaPanel() {
     setReady(pruneReady(r.data || []))
   }
 
-  // Inicial + polling + limpeza periódica
+  // inicial + polling + limpeza periódica
   useEffect(() => {
     fetchQueues()
     const poll = setInterval(fetchQueues, 20000)
@@ -97,7 +97,7 @@ export default function BaristaPanel() {
     return () => { clearInterval(poll); clearInterval(clean) }
   }, [])
 
-  // Realtime: INSERT (new) e UPDATE (ready)
+  // realtime: INSERT (new) e UPDATE (ready)
   useEffect(() => {
     const channel = supabase
       .channel('orders-realtime')
@@ -164,13 +164,161 @@ export default function BaristaPanel() {
     }
   }
 
-  const avatar = (url) => (
-    <img
-      src={url || '/avatar-placeholder.png'}
-      alt="foto do convidado"
-      style={{ width:48, height:48, borderRadius:'50%', objectFit:'cover', border:'1px solid #e5e7eb' }}
-    />
+  // componente de card (2 colunas: foto | conteúdo)
+  const PendingCard = ({ order, idx }) => (
+    <li
+      key={order.id}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '110px 1fr',
+        gap: 16,
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 14,
+        background: '#ffffff',
+        border: '1px solid #e5e7eb',
+        boxShadow: '0 4px 12px rgba(0,0,0,.04)'
+      }}
+    >
+      {/* Foto grande */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <img
+          src={order.photo_url || '/avatar-placeholder.png'}
+          alt="foto do convidado"
+          style={{
+            width: 100,
+            height: 100,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            border: '2px solid #e5e7eb'
+          }}
+        />
+      </div>
+
+      {/* Conteúdo */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>
+              {order.name} pediu:
+            </div>
+            <div style={{ fontSize: 13, color: '#6b7280' }}>
+              ⏱️ Na fila há {since(order.created_at, now)}
+            </div>
+          </div>
+          <div style={{
+            fontSize: 18,
+            padding: '4px 10px',
+            background: '#111827',
+            color: '#fff',
+            borderRadius: 10,
+            minWidth: 64,
+            textAlign: 'center'
+          }}>
+            #{idx + 1}
+          </div>
+        </div>
+
+        <div style={{ fontSize: 26, fontWeight: 800, color: '#111827' }}>
+          {order.drink_name}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-start' }}>
+          <button
+            onClick={() => markReady(order.id)}
+            style={{
+              padding: '10px 14px',
+              fontSize: 16,
+              background: '#22c55e',
+              color: '#0b0e0c',
+              border: 'none',
+              borderRadius: 8,
+              fontWeight: 700
+            }}
+          >
+            ✅ Drink pronto
+          </button>
+        </div>
+      </div>
+    </li>
   )
+
+  const ReadyCard = ({ order }) => {
+    const readyMs = new Date(order.ready_at || order.created_at).getTime()
+    const olderThan10 = Date.now() - readyMs >= TEN_MIN
+    const disabled = !!remindingIds[order.id]
+
+    return (
+      <li
+        key={order.id}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '110px 1fr',
+          gap: 16,
+          alignItems: 'center',
+          padding: 16,
+          borderRadius: 14,
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
+          boxShadow: '0 4px 12px rgba(0,0,0,.04)'
+        }}
+      >
+        {/* Foto grande */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <img
+            src={order.photo_url || '/avatar-placeholder.png'}
+            alt="foto do convidado"
+            style={{
+              width: 100,
+              height: 100,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '2px solid #e5e7eb'
+            }}
+          />
+        </div>
+
+        {/* Conteúdo */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>
+                {order.name}
+              </div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>
+                pronto às {new Date(order.ready_at || order.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#111827' }}>
+            {order.drink_name}
+          </div>
+
+          {olderThan10 && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => remind(order.id)}
+                disabled={disabled}
+                style={{
+                  padding: '10px 14px',
+                  fontSize: 16,
+                  background: disabled ? '#e5e7eb' : '#38bdf8',
+                  color: '#0b0e0c',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  cursor: disabled ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {disabled ? 'Lembrete enviado' : '🔔 Reenviar SMS (lembrete)'}
+              </button>
+            </div>
+          )}
+        </div>
+      </li>
+    )
+  }
 
   return (
     <div style={{ fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', background:'#fff', minHeight:'100vh', color:'#0f172a' }}>
@@ -208,39 +356,7 @@ export default function BaristaPanel() {
           ) : (
             <ul style={{ listStyle:'none', padding:0, margin:0, display:'grid', gap:12 }}>
               {pending.map((order, idx) => (
-                <li key={order.id} style={{
-                  padding:16, borderRadius:14, background:'#ffffff',
-                  border:'1px solid #e5e7eb', boxShadow:'0 4px 12px rgba(0,0,0,.04)'
-                }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10 }}>
-                    {avatar(order.photo_url)}
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:18, color:'#111827' }}>
-                        <strong>{order.name}</strong> pediu:
-                      </div>
-                      <div style={{ fontSize:13, color:'#6b7280', marginTop:2 }}>
-                        ⏱️ Na fila há {since(order.created_at, now)}
-                      </div>
-                    </div>
-                    <div style={{ fontSize:18, padding:'4px 10px', background:'#111827', color:'#fff', borderRadius:10, minWidth:64, textAlign:'center' }}>
-                      #{idx + 1}
-                    </div>
-                  </div>
-
-                  <div style={{ fontSize:24, fontWeight:700, color:'#111827', marginBottom:12 }}>
-                    {order.drink_name}
-                  </div>
-
-                  <button
-                    onClick={() => markReady(order.id)}
-                    style={{
-                      padding:14, fontSize:18, background:'#22c55e', color:'#0b0e0c',
-                      border:'none', borderRadius:10, width:'100%', fontWeight:700
-                    }}
-                  >
-                    ✅ Drink pronto
-                  </button>
-                </li>
+                <PendingCard key={order.id} order={order} idx={idx} />
               ))}
             </ul>
           )}
@@ -253,48 +369,9 @@ export default function BaristaPanel() {
             <p style={{ color:'#6b7280' }}>Nenhum drink pronto no momento…</p>
           ) : (
             <ul style={{ listStyle:'none', padding:0, margin:0, display:'grid', gap:12 }}>
-              {ready.map((order) => {
-                const readyMs = new Date(order.ready_at || order.created_at).getTime()
-                const olderThan10 = Date.now() - readyMs >= TEN_MIN
-                const disabled = !!remindingIds[order.id]
-                return (
-                  <li key={order.id} style={{
-                    padding:16, borderRadius:14, background:'#ffffff',
-                    border:'1px solid #e5e7eb', boxShadow:'0 4px 12px rgba(0,0,0,.04)'
-                  }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                      {avatar(order.photo_url)}
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:18, color:'#111827' }}>
-                          <strong>{order.name}</strong>
-                        </div>
-                        <div style={{ fontSize:12, color:'#6b7280' }}>
-                          pronto às {new Date(order.ready_at || order.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ fontSize:22, fontWeight:700, color:'#111827', marginTop:8 }}>
-                      {order.drink_name}
-                    </div>
-
-                    {olderThan10 && (
-                      <button
-                        onClick={() => remind(order.id)}
-                        disabled={disabled}
-                        style={{
-                          marginTop:10, padding:12, fontSize:16,
-                          background: disabled ? '#e5e7eb' : '#38bdf8',
-                          color:'#0b0e0c', border:'none', borderRadius:10, width:'100%', fontWeight:700,
-                          cursor: disabled ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        {disabled ? 'Lembrete enviado' : '🔔 Reenviar SMS (lembrete)'}
-                      </button>
-                    )}
-                  </li>
-                )
-              })}
+              {ready.map((order) => (
+                <ReadyCard key={order.id} order={order} />
+              ))}
             </ul>
           )}
         </section>
