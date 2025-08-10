@@ -1,3 +1,4 @@
+// pages/me.jsx
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
@@ -7,130 +8,123 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
 
-const badge = (s) => {
-  const map = { new: 'Novo', prep: 'Em preparo', ready: 'Pronto' }
-  const color = s === 'ready' ? '#2e7d32' : s === 'prep' ? '#1565c0' : '#8d6e63'
-  return <span style={{ padding:'4px 8px', borderRadius:8, background:'#eee', color }}>{map[s] || s}</span>
+const normalizeBR = (p) => {
+  let x = (p || '').replace(/\D/g, '')
+  if (x.startsWith('55')) return '+' + x
+  if (x.startsWith('0')) return '+55' + x.slice(1)
+  if (!x.startsWith('+')) return '+55' + x
+  return x
 }
 
-const fmt = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-
-export default function MyOrders() {
+export default function Me() {
   const router = useRouter()
   const [phone, setPhone] = useState('')
   const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // Pega phone da query ou do localStorage
+  // resolve o telefone (querystring ou localStorage) e normaliza
   useEffect(() => {
-    const q = (router.query.phone || '').toString()
-    if (q) setPhone(q)
-    else {
-      try {
-        const saved = localStorage.getItem('fzb_phone') || ''
-        if (saved) setPhone(saved)
-      } catch {}
+    if (!router.isReady) return
+    let p = ''
+    if (router.query.phone) p = String(router.query.phone)
+    if (!p) {
+      try { p = localStorage.getItem('fzb_phone') || '' } catch {}
     }
-  }, [router.query.phone])
+    if (!p) { router.replace('/cadastro'); return }
+    setPhone(normalizeBR(p))
+  }, [router.isReady]) // eslint-disable-line
 
-  // Carrega + realtime + polling leve
+  // carrega e assina atualizações
   useEffect(() => {
     if (!phone) return
-    let active = true
+    let cancelled = false
 
     const load = async () => {
+      setLoading(true)
       const { data, error } = await supabase
         .from('orders')
-        .select('id,drink_name,status,created_at')
+        .select('id,drink_name,status,created_at,ready_at')
         .eq('phone', phone)
         .order('created_at', { ascending: true })
-      if (error) { setErrorMsg(error.message); return }
-      if (!active) return
+      if (cancelled) return
+      if (error) setErrorMsg(error.message)
       setOrders(data || [])
+      setLoading(false)
     }
 
     load()
-    const poll = setInterval(load, 30000) // fallback 30s
+    const poll = setInterval(load, 20000)
 
-    // Realtime: INSERT/UPDATE para a tabela inteira (filtra no cliente)
     const channel = supabase
-      .channel('orders-me')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
-        const row = payload.new || payload.old
-        if (!row || row.phone !== phone) return
-
-        setOrders(prev => {
-          let next = [...prev]
-          const idx = next.findIndex(x => x.id === row.id)
-          if (payload.eventType === 'INSERT') {
-            if (idx === -1) next.push(payload.new)
-          } else if (payload.eventType === 'UPDATE') {
-            if (idx !== -1) next[idx] = payload.new
-          }
-          next.sort((a,b) => new Date(a.created_at) - new Date(b.created_at))
-          return next
-        })
+      .channel('me-orders')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        const row = payload.new
+        if (row.phone === phone) {
+          setOrders(prev => [...prev, row].sort((a,b)=> new Date(a.created_at)-new Date(b.created_at)))
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        const row = payload.new
+        if (row.phone === phone) {
+          setOrders(prev => prev.map(o => o.id === row.id ? row : o))
+        }
       })
       .subscribe()
 
     return () => {
-      active = false
+      cancelled = true
       clearInterval(poll)
       supabase.removeChannel(channel)
     }
   }, [phone])
 
-  const grouped = useMemo(() => {
-    // Apenas para exibir “em preparo”/“pronto” de forma clara
-    const ready = orders.filter(o => o.status === 'ready')
-    const pending = orders.filter(o => o.status !== 'ready')
-    return { ready, pending }
+  const backToMenu = () => router.push('/menu')
+
+  const pending = useMemo(() => orders.filter(o => o.status === 'new'), [orders])
+  const ready = useMemo(() => {
+    return orders
+      .filter(o => o.status === 'ready')
+      .sort((a,b) => new Date(b.ready_at || b.created_at) - new Date(a.ready_at || a.created_at))
   }, [orders])
 
-  if (!phone) {
-    return (
-      <main style={{ padding:20, maxWidth:480, margin:'0 auto', fontFamily:'sans-serif' }}>
-        <h1>Meus pedidos</h1>
-        <p>Informe seu celular para ver seus pedidos.</p>
-        <form onSubmit={(e)=>{e.preventDefault(); router.push(`/me?phone=${encodeURIComponent(phone)}`)}}>
-          <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+55DDD9XXXXXXXX" style={{ width:'100%', padding:10, marginBottom:12 }} />
-          <button style={{ padding:12, fontSize:16 }}>Ver meus pedidos</button>
-        </form>
-      </main>
-    )
-  }
-
   return (
-    <main style={{ padding:20, maxWidth:600, margin:'0 auto', fontFamily:'sans-serif' }}>
-      <h1>Meus pedidos</h1>
-
-      {/* ✅ Botões de ação */}
-      <div style={{ display:'flex', gap:10, margin:'8px 0 16px' }}>
-        <button
-          onClick={() => {
-            try { localStorage.setItem('fzb_phone', phone) } catch {}
-            window.location.href = '/'
-          }}
-          style={{ padding:10, fontSize:16, borderRadius:8, border:'1px solid #ccc', background:'#f7f7f7' }}
-        >
-          ➕ Pedir outro drink
+    <main style={{ padding:20, maxWidth:700, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
+      {/* Topbar com voltar */}
+      <header style={{
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        gap:12, marginBottom:12
+      }}>
+        <button onClick={backToMenu} style={{ padding:'8px 12px', border:'1px solid #e5e7eb', borderRadius:10, background:'#fff' }}>
+          ⬅️ Menu
         </button>
-      </div>
+        <h1 style={{ margin:0, fontSize:18 }}>Meus pedidos</h1>
+        <div style={{ width:84 }} /> {/* espaçador para equilibrar */}
+      </header>
 
-      <div style={{ opacity:.8, marginBottom:12 }}>Celular: {phone}</div>
-      {errorMsg && <div style={{ color:'#e66', marginBottom:12 }}>{errorMsg}</div>}
+      <p style={{ fontSize:13, opacity:.7, marginTop:-4, marginBottom:12 }}>
+        Você receberá um SMS quando seu drink ficar pronto.
+      </p>
 
-      <section style={{ marginBottom:24 }}>
-        <h2 style={{ fontSize:20, marginBottom:8 }}>Em andamento</h2>
-        {grouped.pending.length === 0 ? (
-          <div>Nenhum pedido em andamento.</div>
+      {errorMsg && <div style={{ color:'#e11d48', marginBottom:12 }}>{errorMsg}</div>}
+      {loading && <div style={{ opacity:.7, marginBottom:12 }}>Carregando…</div>}
+
+      <section style={{ marginBottom:18 }}>
+        <h2 style={{ fontSize:16, margin:'8px 0' }}>🧑‍🍳 A preparar ({pending.length})</h2>
+        {pending.length === 0 ? (
+          <div style={{ fontSize:14, opacity:.7 }}>Nenhum pedido aguardando…</div>
         ) : (
-          <ul style={{ listStyle:'none', padding:0 }}>
-            {grouped.pending.map(o=>(
-              <li key={o.id} style={{ padding:12, marginBottom:10, background:'#f6f6f6', borderRadius:10 }}>
-                <div style={{ fontSize:18, marginBottom:6 }}>{o.drink_name}</div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  {badge(o.status)} <span style={{ opacity:.7 }}>• feito às {fmt(o.created_at)}</span>
+          <ul style={{ listStyle:'none', padding:0, margin:0, display:'grid', gap:10 }}>
+            {pending.map((o) => (
+              <li key={o.id} style={{ padding:12, border:'1px solid #e5e7eb', borderRadius:12, background:'#fff' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
+                  <div style={{ fontWeight:700 }}>{o.drink_name}</div>
+                  <span style={{ fontSize:12, padding:'4px 8px', background:'#fef3c7', border:'1px solid #fde68a', borderRadius:999 }}>
+                    aguardando
+                  </span>
+                </div>
+                <div style={{ fontSize:12, opacity:.7, marginTop:6 }}>
+                  feito em {new Date(o.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                 </div>
               </li>
             ))}
@@ -139,22 +133,37 @@ export default function MyOrders() {
       </section>
 
       <section>
-        <h2 style={{ fontSize:20, marginBottom:8 }}>Prontos</h2>
-        {grouped.ready.length === 0 ? (
-          <div>Nenhum pedido pronto ainda.</div>
+        <h2 style={{ fontSize:16, margin:'8px 0' }}>✅ Prontos ({ready.length})</h2>
+        {ready.length === 0 ? (
+          <div style={{ fontSize:14, opacity:.7 }}>Assim que estiver pronto, aparece aqui.</div>
         ) : (
-          <ul style={{ listStyle:'none', padding:0 }}>
-            {grouped.ready.map(o=>(
-              <li key={o.id} style={{ padding:12, marginBottom:10, background:'#eef8ee', borderRadius:10 }}>
-                <div style={{ fontSize:18, marginBottom:6 }}>{o.drink_name}</div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  {badge(o.status)} <span style={{ opacity:.7 }}>• pedido às {fmt(o.created_at)}</span>
+          <ul style={{ listStyle:'none', padding:0, margin:0, display:'grid', gap:10 }}>
+            {ready.map((o) => (
+              <li key={o.id} style={{ padding:12, border:'1px solid #e5e7eb', borderRadius:12, background:'#fff' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
+                  <div style={{ fontWeight:800 }}>{o.drink_name}</div>
+                  <span style={{ fontSize:12, padding:'4px 8px', background:'#dcfce7', border:'1px solid #86efac', borderRadius:999 }}>
+                    pronto
+                  </span>
+                </div>
+                <div style={{ fontSize:12, opacity:.7, marginTop:6 }}>
+                  pronto às {new Date(o.ready_at || o.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                 </div>
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      {/* Botão fixo opcional para voltar rápido (útil em iOS) */}
+      <div style={{ position:'fixed', left:0, right:0, bottom:16, display:'grid', placeItems:'center', pointerEvents:'none' }}>
+        <button
+          onClick={backToMenu}
+          style={{ pointerEvents:'auto', padding:'12px 16px', borderRadius:12, border:'1px solid #e5e7eb', background:'#fff' }}
+        >
+          ⬅️ Voltar ao menu
+        </button>
+      </div>
     </main>
   )
 }
