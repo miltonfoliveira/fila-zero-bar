@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
 
@@ -20,28 +20,29 @@ const genId = () => {
   return 'id-' + Math.random().toString(36).slice(2) + Date.now()
 }
 
-// ------ Cropper simples (arraste + zoom) ------
-function AvatarCropper({ file, onCancel, onConfirm }) {
-  const [img, setImg] = useState(null)
+/** Cropper simples (arraste + zoom) trabalhando com DataURL */
+function AvatarCropper({ dataUrl, onCancel, onConfirm }) {
+  const [imgEl, setImgEl] = useState(null)
   const [scale, setScale] = useState(1) // zoom
   const [pos, setPos] = useState({ x: 0, y: 0 }) // deslocamento
-  const [drag, setDrag] = useState(null) // {x,y} do pointer down
+  const [drag, setDrag] = useState(null)
 
-  const VIEW = 280 // janela de crop; preview circular via CSS
-  const OUT = 512  // resolução final
+  const VIEW = 280 // janela de crop quadrada; preview circular via CSS
+  const OUT = 512  // resolução final exportada
 
   useEffect(() => {
-    if (!file) return
-    const url = URL.createObjectURL(file)
-    const image = new Image()
-    image.onload = () => {
-      setImg(image)
+    if (!dataUrl) return
+    const img = new Image()
+    img.onload = () => {
+      setImgEl(img)
+      // centraliza e ajusta zoom inicial
+      const minSide = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height)
+      const initial = Math.max(1, Math.min(2.5, VIEW / minSide))
+      setScale(initial)
       setPos({ x: 0, y: 0 })
-      setScale(Math.max(1, Math.min(2.5, VIEW / Math.min(image.width, image.height))))
-      URL.revokeObjectURL(url)
     }
-    image.src = url
-  }, [file])
+    img.src = dataUrl
+  }, [dataUrl])
 
   const onPointerDown = (e) => {
     e.preventDefault()
@@ -59,30 +60,35 @@ function AvatarCropper({ file, onCancel, onConfirm }) {
   const wheel = (e) => { e.preventDefault(); setScale(s => Math.max(1, Math.min(4, s + (e.deltaY > 0 ? -0.1 : 0.1)))) }
 
   const exportCropped = async () => {
-    if (!img) return
+    if (!imgEl) return
     const canvas = document.createElement('canvas')
     canvas.width = OUT; canvas.height = OUT
     const ctx = canvas.getContext('2d')
 
-    const scaleFactor = (OUT / 280) * scale
-    const centerX = OUT / 2 + pos.x * (OUT / 280)
-    const centerY = OUT / 2 + pos.y * (OUT / 280)
+    const scaleFactor = (OUT / VIEW) * scale
+    const centerX = OUT / 2 + pos.x * (OUT / VIEW)
+    const centerY = OUT / 2 + pos.y * (OUT / VIEW)
 
-    const iw = img.width, ih = img.height
-    const drawW = iw * scaleFactor, drawH = ih * scaleFactor
+    const iw = imgEl.naturalWidth || imgEl.width
+    const ih = imgEl.naturalHeight || imgEl.height
+    const drawW = iw * scaleFactor
+    const drawH = ih * scaleFactor
 
     ctx.fillStyle = '#fff'; ctx.fillRect(0,0,OUT,OUT)
     ctx.save()
+    // Máscara circular (export já redondo)
     ctx.beginPath(); ctx.arc(OUT/2, OUT/2, OUT/2, 0, Math.PI * 2); ctx.closePath(); ctx.clip()
-    ctx.drawImage(img, centerX - drawW/2, centerY - drawH/2, drawW, drawH)
+    ctx.drawImage(imgEl, centerX - drawW/2, centerY - drawH/2, drawW, drawH)
     ctx.restore()
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
-    const base64 = dataUrl.split(',')[1]
-    await onConfirm({ base64, mime: 'image/jpeg', filename: 'avatar.jpg' })
+    const outDataUrl = canvas.toDataURL('image/jpeg', 0.85)
+    const base64 = outDataUrl.split(',')[1]
+    await onConfirm({ base64, mime: 'image/jpeg', filename: 'avatar.jpg', previewUrl: outDataUrl })
   }
 
-  if (!img) return <div style={{ padding: 12, textAlign: 'center' }}>Carregando imagem…</div>
+  if (!imgEl) {
+    return <div style={{ padding: 12, textAlign: 'center' }}>Carregando imagem…</div>
+  }
 
   return (
     <div>
@@ -90,13 +96,23 @@ function AvatarCropper({ file, onCancel, onConfirm }) {
       <div
         onMouseDown={onPointerDown} onMouseMove={onPointerMove} onMouseUp={onPointerUp} onMouseLeave={onPointerUp}
         onTouchStart={onPointerDown} onTouchMove={onPointerMove} onTouchEnd={onPointerUp} onWheel={wheel}
-        style={{ width:280, height:280, margin:'0 auto 10px', borderRadius:'50%', overflow:'hidden',
-                 position:'relative', border:'2px solid #e5e7eb', touchAction:'none', background:'#f9fafb' }}
+        style={{
+          width: VIEW, height: VIEW, margin: '0 auto 10px',
+          borderRadius: '50%', overflow: 'hidden',
+          position: 'relative', border: '2px solid #e5e7eb',
+          touchAction: 'none', background: '#f9fafb'
+        }}
       >
-        <img src={img.src} alt="preview" draggable={false}
-             style={{ position:'absolute', left:'50%', top:'50%',
-                      transform:`translate(calc(-50% + ${pos.x}px), calc(-50% + ${pos.y}px)) scale(${scale})`,
-                      transformOrigin:'center center', userSelect:'none', width: img.width, height: img.height }} />
+        <img
+          src={dataUrl}
+          alt="preview"
+          draggable={false}
+          style={{
+            position: 'absolute', left: '50%', top: '50%',
+            transform: `translate(calc(-50% + ${pos.x}px), calc(-50% + ${pos.y}px)) scale(${scale})`,
+            transformOrigin: 'center center', userSelect: 'none'
+          }}
+        />
       </div>
 
       <div style={{ display:'flex', alignItems:'center', gap:8, margin:'10px 0' }}>
@@ -105,8 +121,8 @@ function AvatarCropper({ file, onCancel, onConfirm }) {
       </div>
 
       <div style={{ display:'flex', gap:8, justifyContent:'center' }}>
-        <button onClick={onCancel} style={{ padding:'8px 12px' }}>Cancelar</button>
-        <button onClick={exportCropped} style={{ padding:'8px 12px', fontWeight:700 }}>Usar esta foto</button>
+        <button onClick={onCancel} style={{ padding:'10px 14px' }}>Cancelar</button>
+        <button onClick={exportCropped} style={{ padding:'10px 14px', fontWeight:700 }}>Usar esta foto</button>
       </div>
     </div>
   )
@@ -116,32 +132,30 @@ export default function Cadastro() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [file, setFile] = useState(null)
+  const [fileDataUrl, setFileDataUrl] = useState('')   // Data URL para o cropper
   const [showCropper, setShowCropper] = useState(false)
-  const [finalPhoto, setFinalPhoto] = useState(null) // {base64, mime, filename, previewUrl}
+  const [finalPhoto, setFinalPhoto] = useState(null)   // {base64, mime, filename, previewUrl}
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // NOVO: valida o profile_id salvo; se não existir mais, limpa e fica no cadastro
+  // Evita loop: valida se profile existe antes de redirecionar
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
         const pid = localStorage.getItem('fzb_profile_id')
-        if (!pid) return // sem id salvo, permanece no cadastro
-
+        if (!pid) return
         const { data } = await supabase.from('profiles').select('id').eq('id', pid).maybeSingle()
         if (cancelled) return
-        if (data && data.id) {
-          router.replace('/menu') // ok, existe → segue pro menu
+        if (data?.id) {
+          router.replace('/menu')
         } else {
-          // não existe → limpa local e permanece
           localStorage.removeItem('fzb_profile_id')
           localStorage.removeItem('fzb_name')
           localStorage.removeItem('fzb_phone')
           localStorage.removeItem('fzb_photo')
         }
-      } catch (_) {}
+      } catch {}
     })()
     return () => { cancelled = true }
   }, [router])
@@ -149,13 +163,24 @@ export default function Cadastro() {
   const onFile = (e) => {
     const f = e.target.files?.[0]
     if (!f) return
-    setFile(f)
-    setShowCropper(true)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result?.toString() || ''
+      setFileDataUrl(dataUrl)
+      setShowCropper(true)
+    }
+    reader.onerror = () => {
+      setErrorMsg('Não foi possível ler a imagem. Tente outra foto.')
+    }
+    reader.readAsDataURL(f) // usa DataURL (robusto no iOS, inclusive HEIC -> Safari decodifica)
   }
 
-  const onCropCancel = () => { setShowCropper(false); setFile(null) }
-  const onCropConfirm = async ({ base64, mime, filename }) => {
-    const previewUrl = `data:${mime};base64,${base64}`
+  const onCropCancel = () => {
+    setShowCropper(false)
+    setFileDataUrl('')
+  }
+
+  const onCropConfirm = async ({ base64, mime, filename, previewUrl }) => {
     setFinalPhoto({ base64, mime, filename, previewUrl })
     setShowCropper(false)
   }
@@ -163,7 +188,10 @@ export default function Cadastro() {
   const submit = async (e) => {
     e.preventDefault()
     setErrorMsg('')
-    if (!name || !phone) { setErrorMsg('Preencha nome e celular.'); return }
+    if (!name || !phone) {
+      setErrorMsg('Preencha nome e celular.')
+      return
+    }
     setLoading(true)
     const profileId = genId()
 
@@ -171,7 +199,8 @@ export default function Cadastro() {
       let photoUrl = null
       if (finalPhoto?.base64) {
         const up = await fetch('/api/upload-avatar', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fileBase64: finalPhoto.base64,
             contentType: finalPhoto.mime,
@@ -212,16 +241,32 @@ export default function Cadastro() {
 
       <form onSubmit={submit}>
         <label>Seu nome</label><br/>
-        <input value={name} onChange={e=>setName(e.target.value)} style={{ width:'100%', padding:10, marginBottom:12 }} />
+        <input
+          value={name}
+          onChange={e=>setName(e.target.value)}
+          style={{ width:'100%', padding:12, marginBottom:12, fontSize:18 }}
+          inputMode="text"
+          autoComplete="name"
+          autoCorrect="off"
+          autoCapitalize="words"
+        />
 
         <label>Celular</label><br/>
-        <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="DDD9XXXXXXXX"
-               style={{ width:'100%', padding:10, marginBottom:12 }} />
+        <input
+          value={phone}
+          onChange={e=>setPhone(e.target.value)}
+          placeholder="DDD9XXXXXXXX"
+          style={{ width:'100%', padding:12, marginBottom:12, fontSize:18 }}
+          inputMode="tel"
+          autoComplete="tel"
+          autoCorrect="off"
+          autoCapitalize="off"
+        />
 
         <label>Sua foto</label><br/>
         {!finalPhoto?.previewUrl ? (
           <>
-            <input type="file" accept="image/*" onChange={onFile} style={{ marginBottom:12 }} />
+            <input type="file" accept="image/*" onChange={onFile} style={{ marginBottom:12, fontSize:17 }} />
             <div style={{ fontSize:12, opacity:.7, marginBottom:12 }}>
               Dica: escolha uma foto do rosto. Você poderá ajustar o enquadramento e o zoom.
             </div>
@@ -229,23 +274,23 @@ export default function Cadastro() {
         ) : (
           <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
             <img src={finalPhoto.previewUrl} alt="Prévia" style={{ width:120, height:120, objectFit:'cover', borderRadius:'50%', border:'1px solid #e5e7eb' }} />
-            <button type="button" onClick={() => { setFinalPhoto(null); setFile(null); }} style={{ padding:'8px 10px' }}>
+            <button type="button" onClick={() => { setFinalPhoto(null); setFileDataUrl(''); }} style={{ padding:'8px 10px' }}>
               Trocar foto
             </button>
           </div>
         )}
 
-        {showCropper && file && (
+        {showCropper && fileDataUrl && (
           <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', display:'grid', placeItems:'center', zIndex:1000, padding:20 }}>
             <div style={{ background:'#fff', borderRadius:12, padding:16, width:340, maxWidth:'90vw' }}>
-              <AvatarCropper file={file} onCancel={onCropCancel} onConfirm={onCropConfirm} />
+              <AvatarCropper dataUrl={fileDataUrl} onCancel={onCropCancel} onConfirm={onCropConfirm} />
             </div>
           </div>
         )}
 
         {errorMsg && <div style={{ color:'#e66', marginBottom:12 }}>{errorMsg}</div>}
 
-        <button disabled={loading} style={{ width:'100%', padding:12, fontSize:16 }}>
+        <button disabled={loading} style={{ width:'100%', padding:12, fontSize:18 }}>
           {loading ? 'Salvando...' : 'Salvar e continuar'}
         </button>
       </form>
