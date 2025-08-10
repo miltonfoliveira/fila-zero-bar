@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { useRouter } from 'next/router';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -57,6 +58,8 @@ export default function BaristaPanel() {
       o.ready_at && new Date(o.ready_at).getTime() >= cutoff
     )
   }
+
+  const router = useRouter();
 
   const fetchQueues = async () => {
     const cutoffISO = new Date(Date.now() - FIFTEEN_MIN).toISOString()
@@ -334,6 +337,22 @@ export default function BaristaPanel() {
             Atualizado: {new Date(now).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
           </div>
         </div>
+        <button
+          onClick={() => router.push('/bar/gerenciar')}
+          style={{
+            padding: '6px 10px',
+            borderRadius: 8,
+            border: '1px solid #ddd',
+            background: '#fff',
+            fontSize: 12,
+            cursor: 'pointer',
+            marginLeft: 8
+          }}
+          aria-label="Gerenciar Drinks"
+          title="Gerenciar Drinks"
+        >
+          Gerenciar Drinks
+        </button>
         <button
           onClick={() => { soundEnabledRef.current = true; localStorage.setItem('fzb_sound','on'); playSound() }}
           style={{

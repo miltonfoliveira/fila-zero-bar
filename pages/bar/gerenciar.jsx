@@ -1,5 +1,5 @@
 // pages/bar/gerenciar.jsx
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
 
@@ -8,105 +8,166 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
 
-/**
- * Requer coluna:
- *   ALTER TABLE drinks ADD COLUMN IF NOT EXISTS available boolean NOT NULL DEFAULT true;
- */
 export default function GerenciarDrinks() {
   const router = useRouter()
-  const [drinks, setDrinks] = useState([])
   const [loading, setLoading] = useState(true)
-  const [errorMsg, setErrorMsg] = useState('')
+  const [saving, setSaving] = useState(null) // id em salvamento
+  const [error, setError] = useState(null)
+  const [drinks, setDrinks] = useState([])
 
-  const load = async () => {
+  // Carrega lista de drinks
+  const loadDrinks = async () => {
     setLoading(true)
+    setError(null)
     const { data, error } = await supabase
       .from('drinks')
-      .select('id, name, ingredients, available')
+      .select('id, name, title, is_available, available')
       .order('name', { ascending: true })
-    if (error) setErrorMsg(error.message)
-    setDrinks(data || [])
+
+    if (error) {
+      setError(error.message)
+      setDrinks([])
+    } else {
+      // Normaliza campos: usa name/title e is_available/available
+      const normalized = (data || []).map((d) => ({
+        id: d.id,
+        name: d.name || d.title || 'Sem nome',
+        is_available:
+          typeof d.is_available === 'boolean'
+            ? d.is_available
+            : (typeof d.available === 'boolean' ? d.available : true)
+      }))
+      setDrinks(normalized)
+    }
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { loadDrinks() }, [])
 
-  const toggle = async (d) => {
+  const onToggle = async (drinkId, nextValue) => {
+    setSaving(drinkId)
+    setError(null)
+
+    // Otimista: atualiza UI antes
+    setDrinks((prev) =>
+      prev.map((d) => (d.id === drinkId ? { ...d, is_available: nextValue } : d))
+    )
+
+    // Tente atualizar a coluna is_available (ajuste para 'available' se seu schema usar esse nome)
     const { error } = await supabase
       .from('drinks')
-      .update({ available: !d.available })
-      .eq('id', d.id)
-    if (error) { alert(error.message); return }
-    setDrinks(prev => prev.map(x => x.id === d.id ? { ...x, available: !d.available } : x))
+      .update({ is_available: nextValue }) // ↩️ se sua coluna chama "available", troque aqui para { available: nextValue }
+      .eq('id', drinkId)
+
+    if (error) {
+      setError(error.message)
+      // Reverte otimista em caso de erro
+      setDrinks((prev) =>
+        prev.map((d) => (d.id === drinkId ? { ...d, is_available: !nextValue } : d))
+      )
+    }
+
+    setSaving(null)
   }
 
   return (
-    <main style={{ padding:16, maxWidth:900, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: 16 }}>
+      {/* Header simples, sem interferir nos demais */}
       <div style={{
-        display:'grid', gridTemplateColumns:'1fr auto', alignItems:'center', marginBottom:12
+        position: 'sticky',
+        top: 0,
+        background: '#fff',
+        zIndex: 10,
+        paddingBottom: 12,
+        borderBottom: '1px solid #eee',
+        marginBottom: 16,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
       }}>
-        <h1 style={{ margin:0, fontSize:20 }}>Gerenciar drinks</h1>
+        <h1 style={{ fontSize: 18, margin: 0 }}>Gerenciar Drinks</h1>
         <button
-          onClick={() => router.push('/bar')}
-          style={{ padding:'10px 14px', border:'1px solid #e5e7eb', background:'#fff', borderRadius:10, fontSize:16 }}
+          onClick={() => router.push('/bar-luluba36')}
+          style={{
+            padding: '6px 10px',
+            borderRadius: 8,
+            border: '1px solid #ddd',
+            background: '#fff',
+            fontSize: 12,
+            cursor: 'pointer'
+          }}
         >
-          ← Voltar ao bar
+          Voltar ao bar
         </button>
       </div>
 
-      <p style={{ marginTop:0, opacity:.8 }}>
-        Toque para alternar: <strong>Disponível</strong> ↔ <strong>Não disponível</strong>. Drinks não disponíveis somem do cardápio dos convidados.
-      </p>
-
-      {errorMsg && <div style={{ color:'#e11d48', marginBottom:12 }}>{errorMsg}</div>}
-      {loading && <div style={{ opacity:.7, marginBottom:12 }}>Carregando…</div>}
-
-      <ul style={{
-        listStyle:'none', padding:0, margin:0,
-        display:'grid', gap:12,
-        gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))'
-      }}>
-        {drinks.map((d) => (
-          <li key={d.id} style={{
-            background:'#fff', border:'1px solid #e5e7eb', borderRadius:14, padding:14,
-            display:'grid', gap:8, boxShadow:'0 4px 12px rgba(0,0,0,.04)'
-          }}>
-            <div style={{ fontWeight:800, fontSize:18 }}>{d.name}</div>
-            {d.ingredients && (
-              <div style={{ fontSize:13, color:'#374151' }}>{d.ingredients}</div>
-            )}
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:6 }}>
-              <span style={{
-                fontSize:12,
-                padding:'4px 8px',
-                borderRadius:999,
-                border: d.available ? '1px solid #86efac' : '1px solid #fecaca',
-                background: d.available ? '#dcfce7' : '#fee2e2',
-                color: d.available ? '#065f46' : '#991b1b'
-              }}>
-                {d.available ? 'Disponível' : 'Não disponível'}
-              </span>
-              <button
-                onClick={() => toggle(d)}
-                style={{
-                  padding:'8px 12px',
-                  border:'1px solid ' + (d.available ? '#fecaca' : '#86efac'),
-                  background: d.available ? '#fff1f2' : '#ecfdf5',
-                  color: d.available ? '#9f1239' : '#065f46',
-                  borderRadius:10,
-                  fontWeight:700
-                }}
-              >
-                {d.available ? 'Marcar como não disponível' : 'Marcar como disponível'}
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      {(!loading && drinks.length === 0) && (
-        <div style={{ opacity:.7, marginTop:12 }}>Nenhum drink cadastrado.</div>
+      {loading && <p>Carregando...</p>}
+      {error && (
+        <p style={{ color: 'crimson', marginBottom: 12 }}>
+          Erro: {error}
+        </p>
       )}
-    </main>
+
+      {!loading && drinks.length === 0 && (
+        <p>Nenhum drink cadastrado.</p>
+      )}
+
+      {!loading && drinks.length > 0 && (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {drinks.map((d) => (
+            <li key={d.id} style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 12px',
+              border: '1px solid #eee',
+              borderRadius: 10,
+              marginBottom: 10
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <strong style={{ marginBottom: 4 }}>{d.name}</strong>
+                <small
+                  style={{
+                    color: d.is_available ? 'green' : 'gray'
+                  }}
+                >
+                  {d.is_available ? 'Disponível' : 'Não disponível'}
+                </small>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* Botões simples para evitar dependências */}
+                <button
+                  disabled={saving === d.id}
+                  onClick={() => onToggle(d.id, true)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 8,
+                    border: '1px solid #ddd',
+                    background: d.is_available ? '#e8f8ee' : '#fff',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Disponível
+                </button>
+                <button
+                  disabled={saving === d.id}
+                  onClick={() => onToggle(d.id, false)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 8,
+                    border: '1px solid #ddd',
+                    background: !d.is_available ? '#fdeeee' : '#fff',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Não disponível
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
