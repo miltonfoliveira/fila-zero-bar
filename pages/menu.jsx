@@ -33,6 +33,7 @@ export default function Menu() {
   const [success, setSuccess] = useState(false)
   const [lastDrinkName, setLastDrinkName] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+  const [actionsOpen, setActionsOpen] = useState(false)
 
   // carrega perfil com verificação robusta
   useEffect(() => {
@@ -92,6 +93,7 @@ export default function Menu() {
       if (error) throw error
       setLastDrinkName(drink.name)
       setSuccess(true)
+      setActionsOpen(false)
     } catch (err) {
       setErrorMsg(err.message || 'Erro ao enviar pedido.')
     } finally {
@@ -104,34 +106,114 @@ export default function Menu() {
     router.replace('/cadastro')
   }
 
+  const goMe = () => {
+    router.push(`/me?phone=${encodeURIComponent(normalizeBR(profile.phone))}`)
+  }
+
   if (!profile) {
     return <main style={{ padding:20, fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>Carregando…</main>
   }
 
-  // (restante igual — cards, ranking, acompanhar, etc.)
+  // tela de sucesso pós-pedido
+  if (success) {
+    return (
+      <main style={{ padding:20, maxWidth:520, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
+        {/* Header compacto */}
+        <header style={{
+          display:'grid',
+          gridTemplateColumns:'auto 1fr auto',
+          alignItems:'center', gap:12, marginBottom:12
+        }}>
+          <img src={profile.photo_url || '/avatar-placeholder.png'} alt="avatar" style={{ width:48, height:48, borderRadius:'50%', objectFit:'cover' }} />
+          <div>
+            <div style={{ fontWeight:700, fontSize:16, lineHeight:1.1, overflow:'hidden', textOverflow:'ellipsis' }}>
+              Olá, {profile.name}
+            </div>
+            <div style={{ opacity:.7, fontSize:12 }}>{profile.phone}</div>
+          </div>
+          <button
+            onClick={() => setActionsOpen(v => !v)}
+            style={{ padding:'8px 10px', borderRadius:10, border:'1px solid #e5e7eb', background:'#fff' }}
+            aria-label="Menu"
+          >
+            ☰
+          </button>
+        </header>
+
+        {/* Sheet de ações */}
+        {actionsOpen && (
+          <ActionSheet
+            onClose={() => setActionsOpen(false)}
+            actions={[
+              { label:'🏆 Ranking', onClick: () => router.push('/ranking') },
+              { label:'👀 Acompanhar status', onClick: goMe },
+              { label:'🖼️ Alterar foto do perfil', onClick: () => router.push('/perfil') },
+              { label:'🚪 Sair', onClick: logout, danger: true },
+            ]}
+          />
+        )}
+
+        <h2>Pedido enviado! 🥂</h2>
+        <p>Seu <strong>{lastDrinkName}</strong> foi para a fila. Você receberá um <strong>SMS</strong> quando ficar pronto.</p>
+
+        <div style={{ display:'grid', gap:10, marginTop:16 }}>
+          <button onClick={() => setSuccess(false)} style={{ padding:12, fontSize:16 }}>
+            ➕ Pedir outro drink
+          </button>
+          <button onClick={goMe} style={{ padding:12, fontSize:16 }}>
+            👀 Acompanhar status dos meus pedidos
+          </button>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main style={{ padding:20, maxWidth:960, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
-      <header style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
-        <img src={profile.photo_url || '/avatar-placeholder.png'} alt="avatar" style={{ width:56, height:56, borderRadius:'50%', objectFit:'cover' }} />
-        <div>
-          <div style={{ fontWeight:700 }}>Olá, {profile.name}</div>
+      {/* Header compacto e responsivo */}
+      <header style={{
+        display:'grid',
+        gridTemplateColumns:'auto 1fr auto',
+        alignItems:'center', gap:12, marginBottom:12
+      }}>
+        <img src={profile.photo_url || '/avatar-placeholder.png'} alt="avatar" style={{ width:48, height:48, borderRadius:'50%', objectFit:'cover' }} />
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontWeight:700, fontSize:16, lineHeight:1.1, overflow:'hidden', textOverflow:'ellipsis' }}>
+            Olá, {profile.name}
+          </div>
           <div style={{ opacity:.7, fontSize:12 }}>{profile.phone}</div>
         </div>
-        <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>
-          <button onClick={() => router.push('/ranking')} style={{ padding:'8px 10px' }}>
-            🏆 Ranking
-          </button>
-          <button onClick={() => router.push(`/me?phone=${encodeURIComponent(normalizeBR(profile.phone))}`)} style={{ padding:'8px 10px' }}>
-            👀 Acompanhar status
-          </button>
-          <button onClick={logout} style={{ padding:'8px 10px' }}>Sair</button>
-        </div>
+        <button
+          onClick={() => setActionsOpen(v => !v)}
+          style={{ padding:'8px 10px', borderRadius:10, border:'1px solid #e5e7eb', background:'#fff' }}
+          aria-label="Menu"
+        >
+          ☰
+        </button>
       </header>
+
+      {/* Sheet de ações */}
+      {actionsOpen && (
+        <ActionSheet
+          onClose={() => setActionsOpen(false)}
+          actions={[
+            { label:'🏆 Ranking', onClick: () => router.push('/ranking') },
+            { label:'👀 Acompanhar status', onClick: goMe },
+            { label:'🖼️ Alterar foto do perfil', onClick: () => router.push('/perfil') },
+            { label:'🚪 Sair', onClick: logout, danger: true },
+          ]}
+        />
+      )}
 
       <h1 style={{ margin:'8px 0 16px' }}>Cardápio</h1>
       {errorMsg && <div style={{ color:'#e66', marginBottom:12 }}>{errorMsg}</div>}
 
-      <ul style={{ listStyle:'none', padding:0, margin:0, display:'grid', gap:16, gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))' }}>
+      {/* grid de cards */}
+      <ul style={{
+        listStyle:'none', padding:0, margin:0,
+        display:'grid', gap:16,
+        gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))'
+      }}>
         {drinks.map(drink => {
           const unavailable = !drink.available
           return (
@@ -141,13 +223,18 @@ export default function Menu() {
               display:'flex', flexDirection:'column', justifyContent:'space-between', minHeight:160
             }}>
               <div style={{ padding:16 }}>
-                <div style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>{drink.name}</div>
+                <div style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>
+                  {drink.name}
+                </div>
                 {drink.description ? (
-                  <div style={{ fontSize:14, opacity:.8, lineHeight:1.4 }}>{drink.description}</div>
+                  <div style={{ fontSize:14, opacity:.8, lineHeight:1.4 }}>
+                    {drink.description}
+                  </div>
                 ) : (
                   <div style={{ fontSize:12, opacity:.6 }}>Sem descrição</div>
                 )}
               </div>
+
               <div style={{ padding:16, paddingTop:0 }}>
                 <button
                   onClick={() => placeOrder(drink)}
@@ -170,5 +257,48 @@ export default function Menu() {
         })}
       </ul>
     </main>
+  )
+}
+
+/** Action sheet simples para mobile */
+function ActionSheet({ actions, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position:'fixed', inset:0, background:'rgba(0,0,0,.4)',
+        display:'flex', justifyContent:'center', alignItems:'flex-end',
+        zIndex:1000
+      }}
+    >
+      <div
+        onClick={(e)=>e.stopPropagation()}
+        style={{
+          background:'#fff', width:'100%', maxWidth:540, borderTopLeftRadius:16, borderTopRightRadius:16,
+          padding:10, boxShadow:'0 -10px 24px rgba(0,0,0,.15)'
+        }}
+      >
+        {actions.map((a, i) => (
+          <button
+            key={i}
+            onClick={() => { a.onClick?.(); onClose(); }}
+            style={{
+              width:'100%', textAlign:'left', padding:'14px 16px',
+              border:'none', background:'transparent',
+              fontSize:16, borderBottom: i < actions.length-1 ? '1px solid #f1f5f9' : 'none',
+              color: a.danger ? '#b91c1c' : '#0f172a'
+            }}
+          >
+            {a.label}
+          </button>
+        ))}
+        <button
+          onClick={onClose}
+          style={{ width:'100%', padding:'14px 16px', marginTop:6, border:'none', background:'#f8fafc', borderRadius:12, fontSize:16 }}
+        >
+          Fechar
+        </button>
+      </div>
+    </div>
   )
 }
