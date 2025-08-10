@@ -1,4 +1,4 @@
-// pages/bar/estoque.jsx
+// pages/bar/gerenciar.jsx
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
@@ -9,13 +9,10 @@ const supabase = createClient(
 )
 
 /**
- * Esta página supõe que sua tabela `drinks` possui a coluna:
- *   - available (boolean, default TRUE)
- * Se ainda não existir, crie no Supabase SQL:
- *
- * ALTER TABLE drinks ADD COLUMN IF NOT EXISTS available boolean NOT NULL DEFAULT true;
+ * Requer coluna:
+ *   ALTER TABLE drinks ADD COLUMN IF NOT EXISTS available boolean NOT NULL DEFAULT true;
  */
-export default function Estoque() {
+export default function GerenciarDrinks() {
   const router = useRouter()
   const [drinks, setDrinks] = useState([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +45,7 @@ export default function Estoque() {
       <div style={{
         display:'grid', gridTemplateColumns:'1fr auto', alignItems:'center', marginBottom:12
       }}>
-        <h1 style={{ margin:0, fontSize:20 }}>Esgotado / Disponibilidade</h1>
+        <h1 style={{ margin:0, fontSize:20 }}>Gerenciar drinks</h1>
         <button
           onClick={() => router.push('/bar')}
           style={{ padding:'10px 14px', border:'1px solid #e5e7eb', background:'#fff', borderRadius:10, fontSize:16 }}
@@ -58,7 +55,7 @@ export default function Estoque() {
       </div>
 
       <p style={{ marginTop:0, opacity:.8 }}>
-        Toque para alternar entre <strong>Disponível</strong> e <strong>Esgotado</strong>. Itens esgotados somem do cardápio dos convidados.
+        Toque para alternar: <strong>Disponível</strong> ↔ <strong>Não disponível</strong>. Drinks não disponíveis somem do cardápio dos convidados.
       </p>
 
       {errorMsg && <div style={{ color:'#e11d48', marginBottom:12 }}>{errorMsg}</div>}
@@ -87,7 +84,7 @@ export default function Estoque() {
                 background: d.available ? '#dcfce7' : '#fee2e2',
                 color: d.available ? '#065f46' : '#991b1b'
               }}>
-                {d.available ? 'Disponível' : 'Esgotado'}
+                {d.available ? 'Disponível' : 'Não disponível'}
               </span>
               <button
                 onClick={() => toggle(d)}
@@ -100,7 +97,7 @@ export default function Estoque() {
                   fontWeight:700
                 }}
               >
-                {d.available ? 'Marcar esgotado' : 'Disponibilizar'}
+                {d.available ? 'Marcar como não disponível' : 'Marcar como disponível'}
               </button>
             </div>
           </li>

@@ -168,7 +168,7 @@ export default function Bar() {
 
   return (
     <main style={{ padding:16, maxWidth:1200, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
-      {/* Header do bar: título + botões à direita (Esgotado / Som) */}
+      {/* Header do bar: título + botões à direita (Gerenciar / Som) */}
       <div style={{
         display:'grid',
         gridTemplateColumns:'1fr auto',
@@ -180,11 +180,11 @@ export default function Bar() {
 
         <div style={{ display:'flex', gap:8 }}>
           <button
-            onClick={() => router.push('/bar/estoque')}
+            onClick={() => router.push('/bar/gerenciar')}
             style={{ padding:'10px 14px', border:'1px solid #e5e7eb', background:'#fff', borderRadius:10, fontSize:16 }}
-            title="Marcar drinks como esgotados"
+            title="Gerenciar disponibilidade de drinks"
           >
-            Esgotado
+            Gerenciar drinks
           </button>
           <button
             onClick={() => setEnabled(v => !v)}
