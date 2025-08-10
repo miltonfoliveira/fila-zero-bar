@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
-import Topbar from '../components/Topbar'
+import HeaderBar from '../components/HeaderBar'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -49,7 +49,7 @@ function AvatarCropper({ dataUrl, onCancel, onConfirm }) {
     e.preventDefault()
     if (!imgEl) return
     const iw = imgEl.naturalWidth || imgEl.width, ih = imgEl.naturalHeight || imgEl.height
-    const next = clamp(scale + (e.deltaY > 0 ? -0.1 : 0.1), minScale, 6)
+    const next = Math.max(minScale, Math.min(6, scale + (e.deltaY > 0 ? -0.1 : 0.1)))
     setScale(next)
     setPos(prev => clampPos(prev.x, prev.y, next, iw, ih))
   }
@@ -149,7 +149,6 @@ export default function Perfil() {
     setSaving(true)
     try {
       const profileId = profile.id
-      // envia pro storage via API
       const up = await fetch('/api/upload-avatar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -158,11 +157,9 @@ export default function Perfil() {
       const upRes = await up.json()
       if (!up.ok || !upRes.ok) throw new Error(upRes.error || 'Falha no upload')
 
-      // atualiza o profile com nova URL
       const { error } = await supabase.from('profiles').update({ photo_url: upRes.url }).eq('id', profileId)
       if (error) throw error
 
-      // atualiza localStorage e estado
       try { localStorage.setItem('fzb_photo', upRes.url) } catch {}
       setProfile(prev => ({ ...prev, photo_url: upRes.url }))
       setShowCropper(false); setFileDataUrl('')
@@ -177,7 +174,7 @@ export default function Perfil() {
 
   return (
     <main style={{ padding:20, maxWidth:420, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
-      <Topbar title="Seu perfil" />
+      <HeaderBar title="Seu perfil" />
 
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
         <img src={profile.photo_url || '/avatar-placeholder.png'} alt="avatar" style={{ width:96, height:96, borderRadius:'50%', objectFit:'cover', border:'1px solid #e5e7eb' }} />

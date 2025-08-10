@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
-import Topbar from '../components/Topbar'
+import HeaderBar from '../components/HeaderBar'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -24,19 +24,15 @@ export default function Me() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // resolve telefone (querystring ou localStorage)
   useEffect(() => {
     if (!router.isReady) return
     let p = ''
     if (router.query.phone) p = String(router.query.phone)
-    if (!p) {
-      try { p = localStorage.getItem('fzb_phone') || '' } catch {}
-    }
+    if (!p) { try { p = localStorage.getItem('fzb_phone') || '' } catch {} }
     if (!p) { router.replace('/cadastro'); return }
     setPhone(normalizeBR(p))
   }, [router.isReady]) // eslint-disable-line
 
-  // carrega e assina atualizações
   useEffect(() => {
     if (!phone) return
     let cancelled = false
@@ -87,10 +83,10 @@ export default function Me() {
   , [orders])
 
   return (
-    <main style={{ padding:20, maxWidth:700, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
-      <Topbar title="Meus pedidos" />
+    <main style={{ padding:'12px 20px 80px', maxWidth:700, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
+      <HeaderBar title="Meus pedidos" />
 
-      <p style={{ fontSize:13, opacity:.7, marginTop:-4, marginBottom:12 }}>
+      <p style={{ fontSize:13, opacity:.7, marginTop:0, marginBottom:12, textAlign:'center' }}>
         Você receberá um SMS quando seu drink ficar pronto.
       </p>
 

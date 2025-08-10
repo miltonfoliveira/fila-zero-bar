@@ -1,7 +1,7 @@
 // pages/ranking.jsx
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import MenuButton from '../components/MenuButton'
+import HeaderBar from '../components/HeaderBar'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -53,21 +53,8 @@ export default function Ranking() {
   }, [orders])
 
   return (
-    <main
-      style={{
-        position:'relative',
-        padding:20,
-        maxWidth:1000,
-        margin:'0 auto',
-        fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif'
-      }}
-    >
-      {/* Header com botão alinhado à direita */}
-      <div style={{ display:'flex', justifyContent:'flex-end' }}>
-        <MenuButton fixedRight={false} />
-      </div>
-
-      <h1 style={{ textAlign:'center', marginTop:8, marginBottom:16, fontSize:18 }}>Ranking de Drinks</h1>
+    <main style={{ padding:20, maxWidth:1000, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
+      <HeaderBar title="Ranking de Drinks" />
 
       {errorMsg && <div style={{ color:'#e11d48', marginBottom:12 }}>{errorMsg}</div>}
       {loading && <div style={{ opacity:.7, marginBottom:12 }}>Carregando…</div>}
