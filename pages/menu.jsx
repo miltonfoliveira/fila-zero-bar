@@ -74,6 +74,46 @@ export default function Menu() {
     fetchDrinks()
   }, [])
 
+  // realtime: reflete UPDATE/INSERT/DELETE em drinks
+  useEffect(() => {
+    const channel = supabase
+      .channel('drinks-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'drinks' },
+        (payload) => {
+          const { eventType } = payload
+          if (eventType === 'UPDATE') {
+            const row = payload.new
+            setDrinks(prev =>
+              prev.map(d =>
+                d.id === row.id
+                  ? { ...d, name: row.name, description: row.description, available: row.available }
+                  : d
+              )
+            )
+          } else if (eventType === 'INSERT') {
+            const row = payload.new
+            setDrinks(prev => {
+              if (prev.some(d => d.id === row.id)) return prev
+              const next = [...prev, row]
+              // mantém ordenação por id asc como no fetch inicial
+              next.sort((a, b) => (a.id > b.id ? 1 : -1))
+              return next
+            })
+          } else if (eventType === 'DELETE') {
+            const row = payload.old
+            setDrinks(prev => prev.filter(d => d.id !== row.id))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
   const placeOrder = async (drink) => {
     if (!profile || !drink) return
     if (!drink.available) return
@@ -223,9 +263,24 @@ export default function Menu() {
               display:'flex', flexDirection:'column', justifyContent:'space-between', minHeight:160
             }}>
               <div style={{ padding:16 }}>
-                <div style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>
-                  {drink.name}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+                  <div style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>
+                    {drink.name}
+                  </div>
+                  {unavailable && (
+                    <span
+                      aria-label="Esgotado"
+                      title="Esgotado"
+                      style={{
+                        fontSize:12, padding:'2px 8px', borderRadius:999,
+                        background:'#eee', color:'#666', border:'1px solid #ddd', whiteSpace:'nowrap'
+                      }}
+                    >
+                      Esgotado
+                    </span>
+                  )}
                 </div>
+
                 {drink.description ? (
                   <div style={{ fontSize:14, opacity:.8, lineHeight:1.4 }}>
                     {drink.description}
