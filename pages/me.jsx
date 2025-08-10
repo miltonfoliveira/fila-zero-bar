@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
+import Topbar from '../components/Topbar'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -23,7 +24,7 @@ export default function Me() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // resolve o telefone (querystring ou localStorage) e normaliza
+  // resolve telefone (querystring ou localStorage)
   useEffect(() => {
     if (!router.isReady) return
     let p = ''
@@ -79,28 +80,15 @@ export default function Me() {
     }
   }, [phone])
 
-  const backToMenu = () => router.push('/menu')
-
   const pending = useMemo(() => orders.filter(o => o.status === 'new'), [orders])
-  const ready = useMemo(() => {
-    return orders
-      .filter(o => o.status === 'ready')
+  const ready = useMemo(() =>
+    orders.filter(o => o.status === 'ready')
       .sort((a,b) => new Date(b.ready_at || b.created_at) - new Date(a.ready_at || a.created_at))
-  }, [orders])
+  , [orders])
 
   return (
     <main style={{ padding:20, maxWidth:700, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
-      {/* Topbar com voltar */}
-      <header style={{
-        display:'flex', alignItems:'center', justifyContent:'space-between',
-        gap:12, marginBottom:12
-      }}>
-        <button onClick={backToMenu} style={{ padding:'8px 12px', border:'1px solid #e5e7eb', borderRadius:10, background:'#fff' }}>
-          ⬅️ Menu
-        </button>
-        <h1 style={{ margin:0, fontSize:18 }}>Meus pedidos</h1>
-        <div style={{ width:84 }} /> {/* espaçador para equilibrar */}
-      </header>
+      <Topbar title="Meus pedidos" />
 
       <p style={{ fontSize:13, opacity:.7, marginTop:-4, marginBottom:12 }}>
         Você receberá um SMS quando seu drink ficar pronto.
@@ -154,16 +142,6 @@ export default function Me() {
           </ul>
         )}
       </section>
-
-      {/* Botão fixo opcional para voltar rápido (útil em iOS) */}
-      <div style={{ position:'fixed', left:0, right:0, bottom:16, display:'grid', placeItems:'center', pointerEvents:'none' }}>
-        <button
-          onClick={backToMenu}
-          style={{ pointerEvents:'auto', padding:'12px 16px', borderRadius:12, border:'1px solid #e5e7eb', background:'#fff' }}
-        >
-          ⬅️ Voltar ao menu
-        </button>
-      </div>
     </main>
   )
 }

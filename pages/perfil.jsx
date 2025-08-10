@@ -2,13 +2,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
+import Topbar from '../components/Topbar'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
-
-const genId = () => (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2) + Date.now()
 
 function AvatarCropper({ dataUrl, onCancel, onConfirm }) {
   const [imgEl, setImgEl] = useState(null)
@@ -178,10 +177,7 @@ export default function Perfil() {
 
   return (
     <main style={{ padding:20, maxWidth:420, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
-      <header style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-        <h1 style={{ margin:0 }}>Seu perfil</h1>
-        <button onClick={() => router.push('/menu')} style={{ padding:'8px 12px' }}>⬅️ Menu</button>
-      </header>
+      <Topbar title="Seu perfil" />
 
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
         <img src={profile.photo_url || '/avatar-placeholder.png'} alt="avatar" style={{ width:96, height:96, borderRadius:'50%', objectFit:'cover', border:'1px solid #e5e7eb' }} />

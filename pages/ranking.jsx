@@ -1,6 +1,7 @@
+// pages/ranking.jsx
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
+import Topbar from '../components/Topbar'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -8,15 +9,12 @@ const supabase = createClient(
 )
 
 export default function Ranking() {
-  const router = useRouter()
   const [orders, setOrders] = useState([])
   const [errorMsg, setErrorMsg] = useState('')
   const [loading, setLoading] = useState(true)
 
-  // Carrega pedidos e assina realtime para INSERT
   useEffect(() => {
     let active = true
-
     const load = async () => {
       setLoading(true)
       const { data, error } = await supabase
@@ -28,7 +26,6 @@ export default function Ranking() {
       setOrders(data || [])
       setLoading(false)
     }
-
     load()
 
     const channel = supabase
@@ -39,37 +36,25 @@ export default function Ranking() {
       })
       .subscribe()
 
-    return () => {
-      active = false
-      supabase.removeChannel(channel)
-    }
+    return () => { active = false; supabase.removeChannel(channel) }
   }, [])
 
-  // Agrupa por pessoa (usa profile_id; se não houver, agrupa por nome)
   const ranking = useMemo(() => {
     const map = new Map()
     for (const o of orders) {
       const key = o.profile_id || `name:${o.name || '???'}`
       const curr = map.get(key) || { id: key, name: o.name || 'Convidado', photo_url: o.photo_url || null, count: 0, last_at: o.created_at }
       curr.count += 1
-      // mantém a foto mais recente disponível
       if (o.photo_url) curr.photo_url = o.photo_url
       curr.last_at = o.created_at
       map.set(key, curr)
     }
-    // ordena por count desc, depois pelo mais recente
-    return Array.from(map.values()).sort((a,b) => {
-      if (b.count !== a.count) return b.count - a.count
-      return new Date(b.last_at) - new Date(a.last_at)
-    })
+    return Array.from(map.values()).sort((a,b) => (b.count - a.count) || (new Date(b.last_at) - new Date(a.last_at)))
   }, [orders])
 
   return (
     <main style={{ padding:20, maxWidth:1000, margin:'0 auto', fontFamily:'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
-      <header style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-        <h1 style={{ margin:0 }}>Ranking de Drinks</h1>
-        <button onClick={() => router.push('/menu')} style={{ padding:'8px 12px' }}>⬅️ Voltar ao menu</button>
-      </header>
+      <Topbar title="Ranking de Drinks" />
 
       {errorMsg && <div style={{ color:'#e11d48', marginBottom:12 }}>{errorMsg}</div>}
       {loading && <div style={{ opacity:.7, marginBottom:12 }}>Carregando…</div>}
