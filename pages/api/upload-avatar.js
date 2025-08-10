@@ -15,12 +15,19 @@ export default async function handler(req, res) {
       { auth: { persistSession: false } }
     );
 
+    // Converte base64 para buffer
     const buffer = Buffer.from(fileBase64, 'base64');
-    const path = `profiles/${profileId}/${Date.now()}-${filename}`;
+    // (opcional) limite de 1MB — o 512x512 jpeg 0.85 costuma ficar < 200KB
+    if (buffer.length > 1024 * 1024) {
+      return res.status(400).json({ ok: false, error: 'Imagem muito grande após compressão.' });
+    }
+
+    const safeName = (filename || 'avatar.jpg').toLowerCase().replace(/[^a-z0-9_.-]/g,'')
+    const path = `profiles/${profileId}/${Date.now()}-${safeName.endsWith('.jpg') ? safeName : safeName + '.jpg'}`
 
     const { error: upErr } = await supabase.storage
       .from('avatars')
-      .upload(path, buffer, { contentType, upsert: true });
+      .upload(path, buffer, { contentType: 'image/jpeg', upsert: true });
 
     if (upErr) return res.status(500).json({ ok: false, error: upErr.message });
 
